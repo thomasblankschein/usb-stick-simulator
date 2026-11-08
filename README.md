@@ -111,7 +111,7 @@ sich am Pi mit `sudo raspi-config` (*System Options → Wireless LAN*) nachtrage
 
 ```bash
 sudo apt install -y git                        # falls git fehlt
-git clone <dieses Repo> usb-stick-simulator   # oder Ordner per scp kopieren
+git clone https://github.com/thomasblankschein/usb-stick-simulator.git
 cd usb-stick-simulator
 sudo sh deploy/install.sh
 sudo reboot
@@ -125,7 +125,7 @@ kopiert das Programm nach `/opt/usb-stick-simulator`, legt `/etc/usb-stick-simul
 Danach: Web-Oberfläche unter `http://<pi-name>.local/`, Log mit
 `journalctl -u usb-stick-simulator -f`.
 
-Update: Ordner aktualisieren, `sudo sh deploy/install.sh` erneut ausführen,
+Update: im Ordner `git pull`, `sudo sh deploy/install.sh` erneut ausführen,
 `sudo systemctl restart usb-stick-simulator`. Ein Neustart des Dienstes zieht den Stick **nicht**
 ab (läuft das Gadget schon mit dem aktuellen Image, wird es übernommen).
 
