@@ -64,6 +64,53 @@ Update: Ordner aktualisieren, `sudo sh deploy/install.sh` erneut ausführen,
 `sudo systemctl restart usb-stick-simulator`. Ein Neustart des Dienstes zieht den Stick **nicht**
 ab (läuft das Gadget schon mit dem aktuellen Image, wird es übernommen).
 
+## Feste IP-Adresse
+
+Damit die Web-Oberfläche immer unter derselben Adresse erreichbar ist (auch wenn `.local`
+nicht auflöst), sollte der Pi eine feste IP bekommen. Die Beispiele gehen von einem
+FRITZ!Box-Netz `192.168.178.0/24` aus. Passe Adresse, Gateway und DNS an dein Netz an. Die
+gewählte Adresse darf nicht im DHCP-Bereich des Routers liegen, sonst kann sie doppelt vergeben
+werden.
+
+**Variante A – im Router (am einfachsten):** In der FRITZ!Box unter *Heimnetz → Netzwerk →* Pi
+bearbeiten → „Diesem Netzwerkgerät immer die gleiche IPv4-Adresse zuweisen“. Am Pi ändert sich
+nichts, Gateway und DNS kommen weiter per DHCP.
+
+**Variante B – am Pi, Raspberry Pi OS Bookworm und neuer (NetworkManager):**
+
+```bash
+# Name der WLAN-Verbindung herausfinden (mit dem Raspberry Pi Imager eingerichtet: meist "preconfigured")
+nmcli -t -f NAME,DEVICE connection show --active
+
+sudo nmcli connection modify "preconfigured" \
+    ipv4.method manual \
+    ipv4.addresses 192.168.178.50/24 \
+    ipv4.gateway 192.168.178.1 \
+    ipv4.dns "192.168.178.1 1.1.1.1"
+sudo nmcli connection up "preconfigured"
+```
+
+- `ipv4.addresses`: feste Adresse des Pi mit Netzmaske (`/24` = 255.255.255.0)
+- `ipv4.gateway`: Router (Standard-Gateway)
+- `ipv4.dns`: DNS-Server, mehrere durch Leerzeichen getrennt (hier Router, dann Cloudflare als Reserve)
+
+Wer per SSH über WLAN verbunden ist, verliert mit `connection up` die Verbindung und meldet sich
+danach unter der neuen Adresse an. Prüfen: `ip -4 addr show wlan0`, `ip route` (Zeile
+`default via 192.168.178.1`) und `resolvectl status` bzw. `cat /etc/resolv.conf`. Zurück auf
+DHCP: `sudo nmcli connection modify "preconfigured" ipv4.method auto ipv4.addresses "" ipv4.gateway "" ipv4.dns ""`.
+
+**Variante C – ältere Versionen (Bullseye, dhcpcd):** am Ende von `/etc/dhcpcd.conf` ergänzen und
+neu starten:
+
+```
+interface wlan0
+static ip_address=192.168.178.50/24
+static routers=192.168.178.1
+static domain_name_servers=192.168.178.1 1.1.1.1
+```
+
+Welche Variante gilt, zeigt `systemctl is-active NetworkManager` (`active` → Variante B).
+
 ## Konfiguration
 
 Umgebungsvariablen in `/etc/usb-stick-simulator.env`, alle optional. Vollständige Liste mit
