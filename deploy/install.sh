@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installation auf einem Raspberry Pi Zero (W) mit Raspberry Pi OS Lite.
+# Installation auf einem Raspberry Pi Zero 2 W (oder Zero W) mit Raspberry Pi OS Lite.
 # Aufruf im entpackten/geklonten Projektordner:  sudo sh deploy/install.sh
 # Danach einmal neu starten (USB-Gadget-Modus wird erst nach dem Reboot aktiv).
 set -eu

@@ -1,12 +1,12 @@
 # USB-Stick-Simulator
 
-Ein Raspberry Pi Zero W steckt am Resin-Drucker **Anycubic Photon M3** und gibt sich dort als
+Ein Raspberry Pi Zero 2 W steckt am Resin-Drucker **Anycubic Photon M3** und gibt sich dort als
 USB-Stick aus. Druckdateien (`.pm3` aus dem Slicer) lädst du über eine Web-Oberfläche im WLAN
 hoch – kurz darauf liegen sie auf dem „Stick“. Kein Stick-Umstecken mehr.
 
 ```
- PC/Handy ──WLAN──▶ Pi Zero W ──USB (Micro-USB-Datenport)──▶ Photon M3
-   Web-Oberfläche     Ablage → FAT32-Image          sieht einen USB-Stick
+ PC/Handy ──WLAN──▶ Pi Zero 2 W ──USB (Micro-USB-Datenport)──▶ Photon M3
+   Web-Oberfläche     Ablage → FAT32-Image            sieht einen USB-Stick
 ```
 
 ## So funktioniert es
@@ -36,7 +36,9 @@ alles, was er schreiben würde, ginge beim nächsten Tausch ohnehin verloren.
 
 ## Hardware
 
-- Raspberry Pi **Zero W** (auch Zero 2 W) mit Raspberry Pi OS Lite (32 bit), WLAN eingerichtet
+- Raspberry Pi **Zero 2 W** mit Raspberry Pi OS Lite (64 bit), eingerichtet wie unter
+  [Pi einrichten](#pi-einrichten-raspberry-pi-imager) beschrieben. Der ältere Zero W geht auch,
+  braucht aber die 32-bit-Version (ARMv6) und baut Images langsamer.
 - Micro-USB-Kabel vom **Datenport** des Pi (mittlere Buchse, beschriftet „USB“, nicht „PWR“) zum
   USB-Port des Druckers. Der Pi wird darüber auch mit Strom versorgt.
 - SD-Karte: Platz für die Dateien ×2 (beim Tausch existieren altes und neues Image kurz gleichzeitig)
@@ -66,9 +68,49 @@ Laufend beobachten (z. B. beim Verschieben des Pi): `watch -n 1 iw dev wlan0 lin
 Bei schwachem Empfang den Pi nicht in oder unter das Druckergehäuse legen (Metall schirmt ab),
 mit einem längeren USB-Datenkabel außen anbringen oder einen 2,4-GHz-Repeater in die Nähe stellen.
 
+## Pi einrichten (Raspberry Pi Imager)
+
+Einmalig vor der Installation: SD-Karte (ab 8 GB) mit dem
+[Raspberry Pi Imager](https://www.raspberrypi.com/software/) am PC beschreiben.
+
+1. **Gerät:** *Raspberry Pi Zero 2 W*
+2. **Betriebssystem:** *Raspberry Pi OS (other) → Raspberry Pi OS Lite (64-bit)* (ohne Desktop)
+3. **Speicher:** die SD-Karte
+4. **Einstellungen anpassen** (Frage „OS-Anpassungen anwenden?“ mit *Einstellungen bearbeiten*
+   beantworten; je nach Imager-Version heißen die Schritte etwas anders):
+   - **Hostname:** `usb-stick-photon-m3`
+   - **Benutzer:** `pi` mit eigenem Passwort (ein Standardpasswort gibt es nicht mehr)
+   - **WLAN:** Name (SSID) und Passwort; **WLAN-Land `DE`** – ohne Land bleibt das WLAN aus.
+     Der Zero 2 W kann nur 2,4 GHz.
+   - **Gebietsschema:** Zeitzone `Europe/Berlin`, Tastatur `de`
+   - **Dienste:** **SSH aktivieren** (Passwort oder öffentlicher Schlüssel)
+5. Schreiben, SD-Karte in den Pi stecken, Pi mit Strom versorgen (zum Einrichten reicht ein
+   Netzteil am Anschluss „PWR IN“).
+
+Der erste Start dauert einige Minuten (inkl. eines automatischen Neustarts). Danach vom PC
+anmelden – klappt `.local` nicht, die IP aus der FRITZ!Box (*Heimnetz → Netzwerk*) nehmen:
+
+```bash
+ssh pi@usb-stick-photon-m3.local
+```
+
+System auf den neuesten Stand bringen und neu starten:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+```bash
+sudo reboot
+```
+
+Klappt die Anmeldung nicht, siehe [WLAN-Empfang prüfen](#wlan-empfang-prüfen); WLAN-Daten lassen
+sich am Pi mit `sudo raspi-config` (*System Options → Wireless LAN*) nachtragen.
+
 ## Installation auf dem Pi
 
 ```bash
+sudo apt install -y git                        # falls git fehlt
 git clone <dieses Repo> usb-stick-simulator   # oder Ordner per scp kopieren
 cd usb-stick-simulator
 sudo sh deploy/install.sh
@@ -210,7 +252,7 @@ Die Image-, Ablauf- und API-Tests brauchen `mtools`/`dosfstools` und werden sons
   mit Fake-Gadget (automatische und manuelle Übernahme, Warten bei Druckeraktivität, Erzwingen,
   Neustart, Fehler und Erholung), Web-API und Oberfläche im Browser, configfs-Steuerung gegen
   einen nachgebauten sysfs-Baum.
-- **Nicht getestet:** echter Pi Zero W (configfs/dwc2, Loop-Gerät, Lesezähler), der Photon M3 am
+- **Nicht getestet:** echter Pi Zero 2 W (configfs/dwc2, Loop-Gerät, Lesezähler), der Photon M3 am
   simulierten Stick, Dauer des Image-Baus mit großen Dateien auf dem Pi. Offen ist insbesondere,
   ob der Photon M3 während des Drucks tatsächlich laufend vom Stick liest (dann greift der
   Druckschutz) und ob er einen schreibgeschützten Stick akzeptiert (sonst
