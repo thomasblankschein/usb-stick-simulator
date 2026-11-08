@@ -1,7 +1,7 @@
 # USB-Stick-Simulator
 
 Ein Raspberry Pi Zero W steckt am Resin-Drucker **Anycubic Photon M3** und gibt sich dort als
-USB-Stick aus. Dateien (z. B. `.pwmb` aus dem Slicer) lädst du über eine Web-Oberfläche im WLAN
+USB-Stick aus. Druckdateien (`.pm3` aus dem Slicer) lädst du über eine Web-Oberfläche im WLAN
 hoch – kurz darauf liegen sie auf dem „Stick“. Kein Stick-Umstecken mehr.
 
 ```
@@ -105,7 +105,7 @@ dem Stick“), Belegung, Upload per Drag & Drop und die Knöpfe „Jetzt überne
 Beispiel:
 
 ```bash
-curl -T "Halter v2.pwmb" "http://usbstick.local/api/files/Halter%20v2.pwmb"
+curl -T "Halter v2.pm3" "http://usbstick.local/api/files/Halter%20v2.pm3"
 ```
 
 Dateinamen werden für FAT bereinigt: nur ASCII (Umlaute → ae/oe/ue/ss), keine Pfade, keine

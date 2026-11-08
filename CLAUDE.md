@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**usb-stick-simulator** — Raspberry Pi Zero W gibt sich per USB-Gadget (configfs, `dwc2` + `libcomposite`, Mass Storage) gegenüber dem Resin-Drucker Anycubic Photon M3 als USB-Stick aus; Dateien kommen über eine Web-Oberfläche. Python 3 (nur Standardbibliothek, läuft ab 3.11 / Raspberry Pi OS Bookworm), dazu `dosfstools` + `mtools`. Doku auf Deutsch, siehe README.md.
+**usb-stick-simulator** — Raspberry Pi Zero W gibt sich per USB-Gadget (configfs, `dwc2` + `libcomposite`, Mass Storage) gegenüber dem Resin-Drucker Anycubic Photon M3 als USB-Stick aus; die Druckdateien (`.pm3`) kommen über eine Web-Oberfläche. Python 3 (nur Standardbibliothek, läuft ab 3.11 / Raspberry Pi OS Bookworm), dazu `dosfstools` + `mtools`. Doku auf Deutsch, siehe README.md.
 
 - `usbstick/library.py` — Ablage `files/` = einzige Wahrheit über den Stick-Inhalt. Upload atomar über versteckte `.upload-*.part`, `sanitize_name` (ASCII, FAT-sicher, max. 100 Zeichen), Groß-/Kleinschreibungs-Duplikate werden ersetzt (FAT unterscheidet nicht), `snapshot` per Hardlinks für den Image-Bau
 - `usbstick/image.py` — FAT32-Image: Sparse-Datei → `mkfs.vfat -F 32` → `mcopy -D o -m -Q` → Prüfung per `mdir` (`parse_mdir`) → atomar umbenennen; Manifest `<image>.json`. Nie mounten (braucht root, und mtools ist ohne Hardware testbar)
