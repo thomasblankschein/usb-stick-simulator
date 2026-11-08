@@ -157,7 +157,8 @@ class ConfigfsGadget(Gadget):
             names = []
         if not names:
             raise GadgetError(
-                "Kein USB-Device-Controller gefunden – ist dtoverlay=dwc2 gesetzt und der Pi neu gestartet?"
+                "Kein USB-Device-Controller gefunden – steht dtoverlay=dwc2,dr_mode=peripheral unter [all] "
+                "in config.txt und wurde der Pi danach neu gestartet? (siehe README, Fehlersuche)"
             )
         return names[0]
 

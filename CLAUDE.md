@@ -8,7 +8,7 @@
 - `usbstick/manager.py` — ein Hintergrund-Thread: Generation zählt Änderungen; fällig nach `apply_delay` oder Knopf → Image `stick-a.img`/`stick-b.img` im Wechsel bauen → warten bis `idle_seconds` ohne Lesezugriff (außer `force` oder noch kein Stick) → tauschen → altes Image löschen. Zeiger auf das aktuelle Image in `images/current`
 - `usbstick/server.py` — `http.server` (HTTP/1.1): `/`, `/health`, `/api/status`, `/api/files` (GET, PUT `<name>` mit Rohdaten, DELETE), `/api/apply[?force=1]`; optional HTTP Basic. Bei API-Änderungen README (API-Abschnitt) mitpflegen
 - `usbstick/web/index.html` — Oberfläche (Upload per XHR wegen Fortschrittsanzeige, Polling alle 2 s)
-- `deploy/` — `install.sh` (Pakete, `dtoverlay=dwc2,dr_mode=peripheral`, Module, `/opt/usb-stick-simulator`, `/etc/usb-stick-simulator.env`, systemd), Unit, Beispielkonfiguration
+- `deploy/` — `enable-dwc2.sh` (config.txt: zählt nur `dtoverlay=dwc2,dr_mode=peripheral` unter `[all]`/ohne Filter als erledigt – aktuelle Images haben schon `[cm5] dtoverlay=dwc2,dr_mode=host`; ein schlichtes `grep dtoverlay=dwc2` hielt das für erledigt und der Pi meldete „Kein USB-Device-Controller“; Test: `tests/test_deploy.py`), `install.sh` (Pakete, ruft `enable-dwc2.sh`, Module, `/opt/usb-stick-simulator`, `/etc/usb-stick-simulator.env`, systemd), Unit, Beispielkonfiguration
 - Tests: `python3 -m unittest discover -s tests` in der WSL (mtools/dosfstools dort installiert). Kein Test-Framework. `test_gadget.py` prüft configfs nur gegen einen nachgebauten Baum
 
 **Designregeln**

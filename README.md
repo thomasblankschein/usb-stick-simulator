@@ -129,6 +129,27 @@ Update: im Ordner `git pull`, `sudo sh deploy/install.sh` erneut ausführen,
 `sudo systemctl restart usb-stick-simulator`. Ein Neustart des Dienstes zieht den Stick **nicht**
 ab (läuft das Gadget schon mit dem aktuellen Image, wird es übernommen).
 
+### Fehlersuche: „Kein USB-Device-Controller gefunden“
+
+Der USB-Port läuft noch im Host-Modus. Prüfen:
+
+```bash
+ls /sys/class/udc
+```
+
+Leer → der Gadget-Modus ist nicht aktiv. In `/boot/firmware/config.txt` muss am Ende stehen:
+
+```
+[all]
+dtoverlay=dwc2,dr_mode=peripheral
+```
+
+Achtung: Aktuelle Images enthalten bereits `dtoverlay=dwc2,dr_mode=host` unter `[cm5]`. Die
+Zeile gilt nur für das Compute Module 5 und hilft dem Zero nicht. (Die erste Version von
+`install.sh` hielt sie fälschlich für ausreichend und ergänzte nichts – mit dem aktuellen Stand
+`git pull` und `sudo sh deploy/install.sh` erneut ausführen.) Danach `sudo reboot`; jetzt sollte
+`ls /sys/class/udc` einen Eintrag wie `3f980000.usb` zeigen.
+
 ## Feste IP-Adresse
 
 Damit die Web-Oberfläche immer unter derselben Adresse erreichbar ist (auch wenn `.local`

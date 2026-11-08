@@ -24,13 +24,7 @@ if [ -f /boot/firmware/config.txt ]; then
 else
     CONFIG_TXT=/boot/config.txt
 fi
-if grep -q '^[[:space:]]*dtoverlay=dwc2' "$CONFIG_TXT"; then
-    echo "    $CONFIG_TXT enthält bereits dtoverlay=dwc2"
-else
-    cp "$CONFIG_TXT" "$CONFIG_TXT.bak-usbstick"
-    printf '\n[all]\n# USB-Stick-Simulator: Micro-USB-Datenport als Gerät (Gadget)\ndtoverlay=dwc2,dr_mode=peripheral\n' >> "$CONFIG_TXT"
-    echo "    dtoverlay=dwc2 in $CONFIG_TXT ergänzt (Sicherung: $CONFIG_TXT.bak-usbstick)"
-fi
+sh "$SRC/deploy/enable-dwc2.sh" "$CONFIG_TXT"
 for mod in dwc2 libcomposite; do
     grep -qx "$mod" /etc/modules || echo "$mod" >> /etc/modules
 done
