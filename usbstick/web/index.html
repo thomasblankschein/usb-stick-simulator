@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB-Stick-Simulator</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1d2330; --muted: #667085; --line: #e3e6eb;
+    --accent: #2563eb; --ok: #16803c; --warn: #b45309; --err: #c0262d; --chip: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e7eaf0; --muted: #98a2b3; --line: #2b3240;
+      --accent: #5b8cff; --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --chip: #252c38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 1rem; margin: 0 0 10px; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; margin-top: 12px; color: var(--muted); font-size: .9rem; }
+  .facts b { display: block; color: var(--text); font-weight: 600; }
+  .err-text { color: var(--err); margin-top: 10px; white-space: pre-wrap; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--text);
+           padding: 7px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .5; cursor: default; }
+  #drop { border: 2px dashed var(--line); border-radius: 10px; padding: 26px 12px; text-align: center; color: var(--muted); cursor: pointer; }
+  #drop.over { border-color: var(--accent); color: var(--accent); }
+  .progress { height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .upl-msg { margin-top: 8px; font-size: .9rem; color: var(--muted); min-height: 1.3em; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  td.name { word-break: break-word; }
+  td.size { color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  td.act { text-align: right; width: 1%; white-space: nowrap; }
+  .chip { display: inline-block; font-size: .75rem; padding: 1px 7px; border-radius: 10px; background: var(--chip); color: var(--muted); margin-left: 6px; }
+  .chip.new { color: var(--warn); }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .bar { height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; margin: 6px 0 2px; }
+  .bar > div { height: 100%; background: var(--ok); }
+  .small { font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>USB-Stick-Simulator</h1>
+  <p class="sub">Dateien hochladen – sie erscheinen kurz darauf auf dem Stick am Drucker.</p>
+
+  <section class="card">
+    <div class="status"><span class="dot" id="dot"></span><span id="phase">Lade …</span></div>
+    <div class="facts">
+      <div>Stick<b id="f-attached">–</b></div>
+      <div>Letzter Lesezugriff<b id="f-read">–</b></div>
+      <div>Zuletzt übernommen<b id="f-apply">–</b></div>
+    </div>
+    <div class="err-text" id="err" hidden></div>
+    <div class="actions">
+      <button class="primary" id="btn-apply" hidden>Jetzt übernehmen</button>
+      <button class="danger" id="btn-force" hidden>Trotzdem übernehmen</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Hochladen</h2>
+    <div id="drop" tabindex="0">Dateien hierher ziehen oder klicken (z.&nbsp;B. <code>.pwmb</code>)</div>
+    <input type="file" id="file" multiple hidden>
+    <div class="progress" id="prog"><div></div></div>
+    <div class="upl-msg" id="upl-msg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Dateien</h2>
+    <div class="bar"><div id="cap-bar" style="width:0"></div></div>
+    <div class="small" id="cap-text"></div>
+    <table><tbody id="files"></tbody></table>
+  </section>
+
+  <p class="small" id="foot"></p>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const PHASES = {
+  idle:     ["ok",   "Stick ist aktuell"],
+  pending:  ["warn", "Änderungen – Übernahme folgt gleich"],
+  manual:   ["warn", "Änderungen noch nicht auf dem Stick"],
+  building: ["warn", "Neues Stick-Image wird gebaut …"],
+  waiting:  ["warn", "Drucker liest gerade (Druck läuft?) – Übernahme wartet"],
+  swapping: ["warn", "Stick wird kurz ab- und wieder angesteckt …"],
+  error:    ["err",  "Übernahme fehlgeschlagen"],
+};
+let status = null;
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  const u = ["KB", "MB", "GB"]; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(n < 10 ? 1 : 0).replace(".", ",") + " " + u[i];
+}
+function fmtAgo(s) {
+  if (s == null) return "–";
+  if (s < 60) return "vor " + Math.round(s) + " s";
+  if (s < 3600) return "vor " + Math.round(s / 60) + " min";
+  return "vor " + (s / 3600).toFixed(1).replace(".", ",") + " h";
+}
+function fmtTime(iso) {
+  return iso ? new Date(iso).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "–";
+}
+async function api(method, path) {
+  const res = await fetch(path, { method });
+  if (!res.ok && res.status !== 204) {
+    let msg = res.status + " " + res.statusText;
+    try { msg = (await res.json()).error || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function render(st, files) {
+  status = st;
+  const [cls, text] = PHASES[st.phase] || ["", st.phase];
+  $("dot").className = "dot " + cls;
+  let phaseText = text;
+  if (st.phase === "pending" && st.applyIn != null) phaseText += " (in " + Math.ceil(st.applyIn) + " s)";
+  if (st.phase === "idle" && st.pending) { $("dot").className = "dot warn"; phaseText = "Änderungen noch nicht auf dem Stick"; }
+  $("phase").textContent = phaseText;
+  $("f-attached").textContent = !st.attached ? "nicht gesteckt"
+    : st.hostConnected === true ? "gesteckt, Drucker verbunden"
+    : st.hostConnected === false ? "gesteckt, kein Drucker erkannt" : "gesteckt";
+  $("f-read").textContent = fmtAgo(st.lastReadAgo) + (st.printerBusy ? " (aktiv)" : "");
+  $("f-apply").textContent = fmtTime(st.lastApply);
+  $("err").hidden = !st.lastError;
+  $("err").textContent = st.lastError || "";
+  const busy = st.phase === "building" || st.phase === "swapping";
+  $("btn-apply").hidden = !(st.pending || st.phase === "error") || st.phase === "waiting";
+  $("btn-apply").disabled = busy;
+  $("btn-force").hidden = st.phase !== "waiting";
+
+  const pct = Math.min(100, st.used / st.capacity * 100);
+  $("cap-bar").style.width = pct.toFixed(1) + "%";
+  $("cap-text").textContent = fmtSize(st.used) + " von " + fmtSize(st.capacity) + " belegt";
+
+  const onStick = new Map(st.stickFiles.map((f) => [f.name, f]));
+  const tbody = $("files");
+  tbody.textContent = "";
+  if (!files.length) {
+    const tr = tbody.insertRow(); const td = tr.insertCell();
+    td.colSpan = 3; td.className = "empty"; td.textContent = "Noch keine Dateien.";
+  }
+  for (const f of files) {
+    const tr = tbody.insertRow();
+    const name = tr.insertCell(); name.className = "name"; name.textContent = f.name;
+    const s = onStick.get(f.name);
+    if (!s || s.size !== f.size || Math.trunc(s.mtime) !== Math.trunc(f.mtime)) {
+      const chip = document.createElement("span"); chip.className = "chip new"; chip.textContent = "noch nicht auf dem Stick";
+      name.appendChild(chip);
+    }
+    const size = tr.insertCell(); size.className = "size"; size.textContent = fmtSize(f.size);
+    const act = tr.insertCell(); act.className = "act";
+    const del = document.createElement("button"); del.textContent = "Löschen"; del.className = "danger";
+    del.onclick = async () => {
+      if (!confirm("„" + f.name + "“ löschen?")) return;
+      try { await api("DELETE", "/api/files/" + encodeURIComponent(f.name)); } catch (e) { alert(e.message); }
+      refresh();
+    };
+    act.appendChild(del);
+  }
+  $("foot").textContent = "Version " + st.version + " · Gadget: " + st.gadget +
+    (st.autoApply ? "" : " · automatische Übernahme aus");
+}
+
+async function refresh() {
+  try {
+    const [st, fl] = await Promise.all([api("GET", "/api/status"), api("GET", "/api/files")]);
+    render(st, fl.files);
+  } catch (e) {
+    $("dot").className = "dot err"; $("phase").textContent = "Keine Verbindung: " + e.message;
+  }
+}
+
+function upload(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", "/api/files/" + encodeURIComponent(file.name));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) $("prog").firstElementChild.style.width = (e.loaded / e.total * 100) + "%";
+    };
+    xhr.onload = () => {
+      if (xhr.status === 201) resolve(JSON.parse(xhr.responseText));
+      else { let m = xhr.status + ""; try { m = JSON.parse(xhr.responseText).error || m; } catch (_) {} reject(new Error(m)); }
+    };
+    xhr.onerror = () => reject(new Error("Verbindung abgebrochen"));
+    xhr.send(file);
+  });
+}
+
+async function uploadAll(files) {
+  if (!files.length) return;
+  $("prog").style.display = "block";
+  const errors = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    $("upl-msg").textContent = "Lade " + f.name + " hoch (" + (i + 1) + "/" + files.length + ") …";
+    $("prog").firstElementChild.style.width = "0";
+    try {
+      const saved = await upload(f);
+      if (saved.name !== f.name) errors.push(f.name + " → gespeichert als „" + saved.name + "“");
+    } catch (e) { errors.push(f.name + ": " + e.message); }
+    refresh();
+  }
+  $("prog").style.display = "none";
+  $("upl-msg").textContent = errors.length ? errors.join(" · ") : files.length + " Datei(en) hochgeladen.";
+}
+
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") $("file").click(); };
+$("file").onchange = (e) => { uploadAll([...e.target.files]); e.target.value = ""; };
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); uploadAll([...e.dataTransfer.files]); };
+
+$("btn-apply").onclick = async () => { try { await api("POST", "/api/apply"); } catch (e) { alert(e.message); } refresh(); };
+$("btn-force").onclick = async () => {
+  if (!confirm("Der Drucker liest gerade vom Stick. Läuft ein Druck, bricht er ab, wenn der Stick jetzt kurz abgezogen wird.\n\nTrotzdem übernehmen?")) return;
+  try { await api("POST", "/api/apply?force=1"); } catch (e) { alert(e.message); }
+  refresh();
+};
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

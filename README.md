@@ -1,0 +1,163 @@
+# USB-Stick-Simulator
+
+Ein Raspberry Pi Zero W steckt am Resin-Drucker **Anycubic Photon M3** und gibt sich dort als
+USB-Stick aus. Dateien (z. B. `.pwmb` aus dem Slicer) lädst du über eine Web-Oberfläche im WLAN
+hoch – kurz darauf liegen sie auf dem „Stick“. Kein Stick-Umstecken mehr.
+
+```
+ PC/Handy ──WLAN──▶ Pi Zero W ──USB (Micro-USB-Datenport)──▶ Photon M3
+   Web-Oberfläche     Ablage → FAT32-Image          sieht einen USB-Stick
+```
+
+## So funktioniert es
+
+1. **Ablage:** Hochgeladene Dateien landen in `files/` auf der SD-Karte des Pi. Diese Ablage ist
+   die einzige Wahrheit über den Stick-Inhalt.
+2. **Image bauen:** Nach einer Änderung baut der Pi im Hintergrund ein komplett **neues**
+   FAT32-Image (`mkfs.vfat` + `mcopy`, ohne mount). Der alte Stick bleibt währenddessen gesteckt.
+3. **Tauschen:** Der Stick wird kurz virtuell abgezogen, das Image getauscht und wieder angesteckt
+   (ca. 1–2 s). Für den Drucker sieht das aus wie Aus- und wieder Einstecken.
+4. **Druckschutz:** Der Drucker liest die Schichten während des Drucks vom Stick – Abziehen
+   bräche den Druck ab. Deshalb wartet der Tausch, bis der Drucker
+   `USBSTICK_IDLE_SECONDS` (Standard 60 s) lang nichts gelesen hat. Gemessen wird das am
+   Lesezähler des Loop-Geräts, über das das Image am USB-Gadget hängt. In der Web-Oberfläche
+   lässt sich der Tausch mit „Trotzdem übernehmen“ erzwingen.
+
+Warum nicht einfach Dateien ins gesteckte Image schreiben? Der Drucker cached das Dateisystem.
+Ändert der Pi es unter ihm, sieht der Drucker Datenmüll oder zerstört das Dateisystem. Nur
+Abziehen + Anstecken ist sicher.
+
+Die Übernahme startet automatisch `USBSTICK_APPLY_DELAY` Sekunden (Standard 10) nach der
+letzten Änderung – mehrere Uploads hintereinander ergeben also nur einen Tausch. Mit
+`USBSTICK_APPLY_DELAY=0` gibt es nur den Knopf „Jetzt übernehmen“.
+
+Der Stick ist standardmäßig **schreibgeschützt**. Der Drucker braucht nichts zu schreiben, und
+alles, was er schreiben würde, ginge beim nächsten Tausch ohnehin verloren.
+
+## Hardware
+
+- Raspberry Pi **Zero W** (auch Zero 2 W) mit Raspberry Pi OS Lite (32 bit), WLAN eingerichtet
+- Micro-USB-Kabel vom **Datenport** des Pi (mittlere Buchse, beschriftet „USB“, nicht „PWR“) zum
+  USB-Port des Druckers. Der Pi wird darüber auch mit Strom versorgt.
+- SD-Karte: Platz für die Dateien ×2 (beim Tausch existieren altes und neues Image kurz gleichzeitig)
+
+Hinweis: Der Pi braucht nach dem Einschalten des Druckers ca. 30–40 s, bis der Stick erscheint.
+
+## Installation auf dem Pi
+
+```bash
+git clone <dieses Repo> usb-stick-simulator   # oder Ordner per scp kopieren
+cd usb-stick-simulator
+sudo sh deploy/install.sh
+sudo reboot
+```
+
+Das Skript installiert `python3`, `dosfstools`, `mtools`, schaltet den USB-Gadget-Modus ein
+(`dtoverlay=dwc2,dr_mode=peripheral` in `config.txt`, Module `dwc2` und `libcomposite`),
+kopiert das Programm nach `/opt/usb-stick-simulator`, legt `/etc/usb-stick-simulator.env` an
+(falls nicht vorhanden) und aktiviert den systemd-Dienst `usb-stick-simulator`.
+
+Danach: Web-Oberfläche unter `http://<pi-name>.local/`, Log mit
+`journalctl -u usb-stick-simulator -f`.
+
+Update: Ordner aktualisieren, `sudo sh deploy/install.sh` erneut ausführen,
+`sudo systemctl restart usb-stick-simulator`. Ein Neustart des Dienstes zieht den Stick **nicht**
+ab (läuft das Gadget schon mit dem aktuellen Image, wird es übernommen).
+
+## Konfiguration
+
+Umgebungsvariablen in `/etc/usb-stick-simulator.env`, alle optional. Vollständige Liste mit
+Erklärungen: [`deploy/usb-stick-simulator.env.example`](deploy/usb-stick-simulator.env.example).
+
+| Variable | Standard | Bedeutung |
+|---|---|---|
+| `USBSTICK_DATA_DIR` | `/var/lib/usb-stick-simulator` | Ablage (`files/`) und Images (`images/`) |
+| `USBSTICK_IMAGE_SIZE_MB` | `4096` | nominelle Stick-Größe (Sparse-Datei, belegt nur den Inhalt) |
+| `USBSTICK_LABEL` | `PHOTON` | Datenträgername |
+| `USBSTICK_GADGET` | `configfs` | `fake` für Entwicklung ohne USB-Hardware |
+| `USBSTICK_READONLY` | `true` | Stick schreibgeschützt anbieten |
+| `USBSTICK_APPLY_DELAY` | `10` | Sekunden bis zur automatischen Übernahme, `0` = nur per Knopf |
+| `USBSTICK_IDLE_SECONDS` | `60` | so lange darf der Drucker nichts gelesen haben, bevor getauscht wird |
+| `USBSTICK_REPLUG_PAUSE` | `1.5` | Pause zwischen Abziehen und Anstecken |
+| `USBSTICK_HOST` / `USBSTICK_PORT` | `0.0.0.0` / `80` | Web-Oberfläche |
+| `USBSTICK_WEB_USER` / `USBSTICK_WEB_PASSWORD` | – | optionaler Passwortschutz (HTTP Basic) |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warning`, `error` |
+
+`USBSTICK_IDLE_SECONDS` muss länger sein als die längste Pause zwischen zwei Lesezugriffen
+während eines Drucks (Belichtung + Hub einer Schicht; am echten Druck im Log mit
+`LOG_LEVEL=debug` bzw. an „Letzter Lesezugriff“ in der Oberfläche beobachten). Zu kurz → ein laufender Druck kann abbrechen; zu lang → Uploads erscheinen später.
+
+## Web-Oberfläche und API
+
+Die Seite zeigt Stick-Status, letzten Lesezugriff, Dateiliste (mit Markierung „noch nicht auf
+dem Stick“), Belegung, Upload per Drag & Drop und die Knöpfe „Jetzt übernehmen“ bzw.
+„Trotzdem übernehmen“.
+
+| Methode | Pfad | |
+|---|---|---|
+| `GET` | `/api/status` | Zustand (Phase, Druckeraktivität, Dateien auf dem Stick, Belegung, letzter Fehler) |
+| `GET` | `/api/files` | Dateien in der Ablage |
+| `PUT` | `/api/files/<name>` | Datei hochladen, Rohdaten im Body, `Content-Length` Pflicht |
+| `DELETE` | `/api/files/<name>` | Datei löschen |
+| `POST` | `/api/apply` | sofort übernehmen; `?force=1` auch, wenn der Drucker gerade liest |
+| `GET` | `/health` | `ok` (ohne Anmeldung) |
+
+Beispiel:
+
+```bash
+curl -T "Halter v2.pwmb" "http://usbstick.local/api/files/Halter%20v2.pwmb"
+```
+
+Dateinamen werden für FAT bereinigt: nur ASCII (Umlaute → ae/oe/ue/ss), keine Pfade, keine
+Sonderzeichen außer ` ._-()+`, höchstens 100 Zeichen. Die Antwort enthält den tatsächlich
+gespeicherten Namen. Eine gleichnamige Datei (auch in anderer Groß-/Kleinschreibung) wird ersetzt.
+
+Phasen in `/api/status`: `idle`, `pending` (Übernahme folgt), `manual` (Knopf drücken),
+`building`, `waiting` (Drucker liest), `swapping`, `error`.
+
+## Entwicklung (Windows + WSL)
+
+Ohne Pi läuft alles mit dem Fake-Gadget in der WSL (braucht `mtools` und `dosfstools`:
+`sudo apt install mtools dosfstools`):
+
+```bash
+USBSTICK_GADGET=fake USBSTICK_DATA_DIR=/tmp/usbstick-dev USBSTICK_PORT=8080 python3 -m usbstick
+```
+
+Dann `http://localhost:8080/` im Windows-Browser öffnen.
+
+Tests (nur Standardbibliothek, kein Test-Framework):
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+Die Image-, Ablauf- und API-Tests brauchen `mtools`/`dosfstools` und werden sonst übersprungen.
+
+## Stand
+
+- Getestet (WSL): Image-Bau mit echtem mtools (Inhalt byte-genau zurückgelesen), gesamter Ablauf
+  mit Fake-Gadget (automatische und manuelle Übernahme, Warten bei Druckeraktivität, Erzwingen,
+  Neustart, Fehler und Erholung), Web-API und Oberfläche im Browser, configfs-Steuerung gegen
+  einen nachgebauten sysfs-Baum.
+- **Nicht getestet:** echter Pi Zero W (configfs/dwc2, Loop-Gerät, Lesezähler), der Photon M3 am
+  simulierten Stick, Dauer des Image-Baus mit großen Dateien auf dem Pi. Offen ist insbesondere,
+  ob der Photon M3 während des Drucks tatsächlich laufend vom Stick liest (dann greift der
+  Druckschutz) und ob er einen schreibgeschützten Stick akzeptiert (sonst
+  `USBSTICK_READONLY=false`).
+
+## Aufbau
+
+```
+usbstick/
+  __main__.py   Start, Signale
+  config.py     Umgebungsvariablen
+  library.py    Ablage: Upload (atomar über .part), Löschen, Namensbereinigung, Snapshot per Hardlinks
+  image.py      FAT32-Image bauen und prüfen (mkfs.vfat, mcopy, mdir), Manifest
+  gadget.py     ConfigfsGadget (Kernel, Loop-Gerät, Lesezähler), FakeGadget
+  manager.py    Ablauf: Änderungen → Image bauen → auf Leerlauf warten → tauschen
+  server.py     HTTP-Server und API (http.server)
+  web/index.html  Oberfläche
+deploy/         install.sh, systemd-Unit, Beispielkonfiguration
+tests/          unittest
+```

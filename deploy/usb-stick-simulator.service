@@ -1,0 +1,21 @@
+[Unit]
+Description=USB-Stick-Simulator (Pi als USB-Stick, Dateien per Web)
+After=local-fs.target network.target
+# configfs muss gemountet sein, bevor das Gadget angelegt wird
+After=sys-kernel-config.mount
+Wants=sys-kernel-config.mount
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/usb-stick-simulator.env
+WorkingDirectory=/opt/usb-stick-simulator
+ExecStartPre=-/sbin/modprobe libcomposite
+ExecStart=/usr/bin/python3 -m usbstick
+Restart=on-failure
+RestartSec=5
+# Beim Stoppen bleibt der Stick bewusst gesteckt (laufender Druck); nur den Prozess beenden
+KillMode=mixed
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
