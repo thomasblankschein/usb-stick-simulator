@@ -43,6 +43,29 @@ alles, was er schreiben würde, ginge beim nächsten Tausch ohnehin verloren.
 
 Hinweis: Der Pi braucht nach dem Einschalten des Druckers ca. 30–40 s, bis der Stick erscheint.
 
+### WLAN-Empfang prüfen
+
+Der Zero hat nur eine Platinenantenne und keinen Anschluss für eine externe. Ein USB-WLAN-Stick
+scheidet aus, weil der einzige Daten-USB-Port als Stick für den Drucker gebraucht wird. Am
+Aufstellort deshalb den Pegel prüfen:
+
+```bash
+iw dev wlan0 link
+```
+
+Maßgeblich ist die Zeile `signal: -NN dBm` (nur sichtbar, wenn der Pi verbunden ist):
+
+| Pegel | Bewertung |
+|---|---|
+| besser als −67 dBm | gut, auch für große Uploads |
+| −67 bis −75 dBm | brauchbar, Uploads werden langsamer |
+| −75 bis −80 dBm | wackelig, Abbrüche möglich |
+| schlechter als −80 dBm | unzuverlässig |
+
+Laufend beobachten (z. B. beim Verschieben des Pi): `watch -n 1 iw dev wlan0 link`.
+Bei schwachem Empfang den Pi nicht in oder unter das Druckergehäuse legen (Metall schirmt ab),
+mit einem längeren USB-Datenkabel außen anbringen oder einen 2,4-GHz-Repeater in die Nähe stellen.
+
 ## Installation auf dem Pi
 
 ```bash
