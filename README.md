@@ -125,9 +125,7 @@ kopiert das Programm nach `/opt/usb-stick-simulator`, legt `/etc/usb-stick-simul
 Danach: Web-Oberfläche unter `http://<pi-name>.local/`, Log mit
 `journalctl -u usb-stick-simulator -f`.
 
-Update: im Ordner `git pull`, `sudo sh deploy/install.sh` erneut ausführen,
-`sudo systemctl restart usb-stick-simulator`. Ein Neustart des Dienstes zieht den Stick **nicht**
-ab (läuft das Gadget schon mit dem aktuellen Image, wird es übernommen).
+Spätere Updates: siehe [Aktualisieren](#aktualisieren).
 
 ### Fehlersuche: „Kein USB-Device-Controller gefunden“
 
@@ -149,6 +147,46 @@ Zeile gilt nur für das Compute Module 5 und hilft dem Zero nicht. (Die erste Ve
 `install.sh` hielt sie fälschlich für ausreichend und ergänzte nichts – mit dem aktuellen Stand
 `git pull` und `sudo sh deploy/install.sh` erneut ausführen.) Danach `sudo reboot`; jetzt sollte
 `ls /sys/class/udc` einen Eintrag wie `3f980000.usb` zeigen.
+
+## Aktualisieren
+
+**Nie während eines Drucks.** Ein Neustart des Pi zieht den Stick ab und bricht einen laufenden
+Druck ab. Ein Neustart nur des Dienstes ist dagegen unkritisch (siehe unten).
+
+### USB-Stick-Simulator
+
+Im Projektordner auf dem Pi:
+
+```bash
+cd ~/usb-stick-simulator
+git pull
+sudo sh deploy/install.sh
+sudo systemctl restart usb-stick-simulator
+```
+
+- `install.sh` kopiert das Programm neu nach `/opt/usb-stick-simulator` und aktualisiert die
+  systemd-Unit. Die Konfiguration `/etc/usb-stick-simulator.env` und die hochgeladenen Dateien
+  bleiben unverändert.
+- Der Dienst-Neustart zieht den Stick **nicht** ab: Läuft das Gadget schon mit dem aktuellen
+  Image, wird es übernommen.
+- Meldet `install.sh` „… ergänzt … – Neustart nötig“, hat sich `config.txt` geändert. Dann statt
+  des Dienst-Neustarts `sudo reboot` (Stick ist kurz weg).
+- Neue Einstellungen: Mit `diff /etc/usb-stick-simulator.env deploy/usb-stick-simulator.env.example`
+  sehen, ob neue Variablen dazugekommen sind, und bei Bedarf übernehmen.
+- Installierte Version: in der Fußzeile der Web-Oberfläche oder per
+  `curl -s http://localhost/api/status` (Feld `version`). Log nach dem Neustart:
+  `journalctl -u usb-stick-simulator -n 30`.
+
+### Betriebssystem
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+Waren in der Ausgabe von `apt upgrade` Kernel- oder Firmware-Pakete dabei (Namen mit
+`linux-image`, `raspi-firmware` oder `raspberrypi-kernel`), danach `sudo reboot` – sonst läuft
+bis zum nächsten Neustart der alte Kernel. Im Zweifel einfach neu starten, wenn gerade nicht
+gedruckt wird.
 
 ## Feste IP-Adresse
 
